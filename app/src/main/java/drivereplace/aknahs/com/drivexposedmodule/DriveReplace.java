@@ -18,10 +18,15 @@ import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 
+import com.google.android.gms.common.api.PendingResult;
+import com.google.android.gms.common.api.Result;
+import com.google.android.gms.common.api.ResultCallback;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
 import com.google.api.client.http.FileContent;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -40,6 +45,7 @@ import org.objenesis.instantiator.android.Android17Instantiator;
 import org.objenesis.instantiator.android.Android18Instantiator;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -50,6 +56,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -117,6 +124,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
     Class<?> driveContentsResult;
     Class<?> googleStatus;
     Class<?> googleDriveContents;
+    Class<?> googleDriveFile;
 
     public static Activity mCurrentActivity = null;
     public static XC_LoadPackage.LoadPackageParam mLpparam = null;
@@ -183,6 +191,11 @@ public class DriveReplace implements IXposedHookLoadPackage {
         //type of DriveContentsResult result = com.google.android.gms.drive.internal.o$c
         driveContentsResult = findClass("com.google.android.gms.drive.internal.o$c", mLpparam.classLoader);
 
+        googleDriveFile = findClass("com.google.android.gms.drive.internal.s", mLpparam.classLoader);
+
+        if(googleDriveFile == null)
+            Log.v(TAG, "#3333####################################################################################################################################################33");
+
         googleStatus = findClass("com.google.android.gms.common.api.Status", mLpparam.classLoader);
 //        type of DriveContentsResult.getDriveContents result = com.google.android.gms.drive.internal.r
 //        type of DriveContentsResult.getDriveContents.getOutputStream() result = java.io.FileOutputStream
@@ -191,6 +204,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
         hookGoogleAPIClient();
         hookDriveAPI();
+        hookDriveFile();
         //hookGooglePlayServiceUtils();
 
 //        Class<?> pendingRes = findClass("com.google.android.gms.drive.internal.o$c", mLpparam.classLoader);
@@ -210,12 +224,12 @@ public class DriveReplace implements IXposedHookLoadPackage {
     }
 
     /**
-     * Print a file's metadata.
+     * Get a file's metadata.
      *
      * @param service Drive API service instance.
      * @param fileId  ID of the file to print metadata for.
      */
-    private static File getFile(Drive service, String fileId) {
+    private static File getFileMetadata(Drive service, String fileId) {
 
         try {
             return service.files().get(fileId).execute();
@@ -230,16 +244,21 @@ public class DriveReplace implements IXposedHookLoadPackage {
         return null;
     }
 
+    public static final String ALL_FOLDERS_MIME = "application/vnd.google-apps.folder";//"mimeType = 'application/vnd.google-apps.folder'";
+    public static final String ALL_FILES_MIME = "application/vnd.google-apps.file";//"mimeType = 'application/vnd.google-apps.file'";
+    public static final String TEXT_FILES_MIME = "text/plain";
+
     /**
      * Retrieve a list of File resources.
      *
      * @param service Drive API service instance.
      * @return List of File resources.
      */
-    private static List<File> retrieveAllFiles(Drive service) throws IOException {
+    private static List<File> retrieveAllFiles(Drive service, String mimeTypeQuery) throws IOException {
         List<File> result = new ArrayList<File>();
         Drive.Files.List request = service.files().list();
-        request.setQ("mimeType = 'application/vnd.google-apps.folder'");
+        request.setQ("mimeType = '" + mimeTypeQuery + "'");
+
         do {
             try {
                 FileList files = request.execute();
@@ -254,6 +273,32 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 request.getPageToken().length() > 0);
 
         return result;
+    }
+
+    /**
+     * Download a file's content.
+     *
+     * @param service Drive API service instance.
+     * @param file    Drive File instance.
+     * @return InputStream containing the file's content if successful,
+     * {@code null} otherwise.
+     */
+    private static InputStream downloadFile(Drive service, File file) {
+        if (file.getDownloadUrl() != null && file.getDownloadUrl().length() > 0) {
+            try {
+                HttpResponse resp =
+                        service.getRequestFactory().buildGetRequest(new GenericUrl(file.getDownloadUrl()))
+                                .execute();
+                return resp.getContent();
+            } catch (IOException e) {
+                // An error occurred.
+                e.printStackTrace();
+                return null;
+            }
+        } else {
+            // The file doesn't have any content stored on Drive.
+            return null;
+        }
     }
 
 
@@ -273,7 +318,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
                 for (ChildReference child : children.getItems()) {
 
-                    File file = getFile(service, child.getId());
+                    File file = getFileMetadata(service, child.getId());
                     Log.v(TAG, "File Id: " + child.getId() + " name : " + file.getTitle());
                 }
                 request.setPageToken(children.getNextPageToken());
@@ -431,94 +476,356 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     });
     }
 
-    public static Object driveContentsResultCallBack = null;
+    public static Object _driveContentsResultCallBack = null;
     public static Object results = new Object();
     public static List<com.google.api.services.drive.model.File> files = null;
     public static OutputStream driveOutputStream = null;
-    public static String title;
-    public static String mime;
+    public static InputStream fileInputStream = null;
+    public static String _title;
+    public static String _fID;
+    public static String _mime;
+
+    public static final int MODE_READ_ONLY = 268435456;
+    public static final int MODE_READ_WRITE = 805306368;
+    public static final int MODE_WRITE_ONLY = 536870912;
+
+    public void hookDriveFile() {
+
+        /*final PendingResult<MetadataResult>
+                        mMetadataResultPendingResult = file.getMetadata(mGoogleApiClient);*/
+
+        /*
+        * DriveFile class : class com.google.android.gms.drive.internal.s
+            mMetadataResultPendingResult class = class com.google.android.gms.drive.internal.w$1
+            MetadataResult class = class com.google.android.gms.drive.internal.w$c
+            DriveContentsResult class = class com.google.android.gms.drive.internal.o$c
+            meta.getMetadata() class = class com.google.android.gms.drive.internal.l
+
+        *
+        * */
+        if (googleDriveFile != null) {
+
+            final Class<?> metadataResult = findClass("com.google.android.gms.drive.internal.w$c", mLpparam.classLoader);
+            final Class<?> metadata = findClass("com.google.android.gms.drive.internal.l", mLpparam.classLoader);
+
+            XposedBridge.hookAllMethods(metadataResult, "getMetadata", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    //  meta.getMetadata() class = class com.google.android.gms.drive.internal.l
+
+                    ObjectInstantiator<?> inst = getInstantiator(metadata);
+
+                    return null;
+                }
+            });
+
+            XposedBridge.hookAllMethods(metadata, "getTitle", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    return FILE.getTitle();
+                }
+            });
+
+            XposedBridge.hookAllMethods(metadataResult, "getStatus", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    Constructor<?> status = XposedHelpers.findConstructorBestMatch(googleStatus, Integer.class);
+                    return status.newInstance(SUCCESS);
+                }
+            });
+
+            XposedBridge.hookAllMethods(googleDriveFile, "discardContents", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+
+                    PendingResult<Result> pr = new PendingResult<Result>() {
+                        @Override
+                        public Result await() {
+                            FILE = null;
+                            try {
+                                fileInputStream.close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            fileInputStream = null;
+
+                            ObjectInstantiator<?> inst = getInstantiator(metadataResult);
+                            return (Result) inst.newInstance();
+                        }
+
+                        @Override
+                        public Result await(long l, TimeUnit timeUnit) {
+                            FILE = null;
+                            try {
+                                fileInputStream.close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            fileInputStream = null;
+
+                            ObjectInstantiator<?> inst = getInstantiator(metadataResult);
+                            return (Result) inst.newInstance();
+                        }
+
+                        @Override
+                        public void cancel() {
+                        }
+
+                        @Override
+                        public boolean isCanceled() {
+                            return false;
+                        }
+
+                        @Override
+                        public void setResultCallback(ResultCallback<Result> resultResultCallback) {
+                        }
+
+                        @Override
+                        public void setResultCallback(ResultCallback<Result> resultResultCallback, long l, TimeUnit timeUnit) {
+                        }
+
+                        @Override
+                        public void a(a a) {
+                        }
+                    };
+
+                    return pr;
+                }
+            });
+
+            //XposedBridge.hookAllMethods(driveContentsResult, "getDriveContents")
+
+            Class<?> googleDriveSuper = findClass("com.google.android.gms.drive.internal.w", mLpparam.classLoader);
+            final Class<?> pendingResultOfMetadata = findClass("com.google.android.gms.drive.internal.w$1",mLpparam.classLoader);
+            final Class<?> pendingResultAwaitImplementation = findClass("com.google.android.gms.common.api.BaseImplementation$AbstractPendingResult", mLpparam.classLoader);
+
+            XposedBridge.hookAllMethods(pendingResultAwaitImplementation, "await", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    FILE = getFileMetadata(service, _fID);
+
+                    ObjectInstantiator<?> inst = getInstantiator(metadataResult);
+                    return (Result) inst.newInstance();
+                }
+            });
+
+            XposedBridge.hookAllMethods(googleDriveSuper, "getMetadata", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    //Returned result needs to be MetadataResult (com.google.android.gms.drive.MetadataResult
+
+
+
+                    ObjectInstantiator<?> instantiator = getInstantiator(pendingResultOfMetadata);
+
+                    return instantiator.newInstance();
+
+                    /*
+                    DriveFile class : class com.google.android.gms.drive.internal.s
+                    MetadataResult class = class com.google.android.gms.drive.internal.w$c --> metadataResult
+                    DriveContentsResult class = class com.google.android.gms.drive.internal.o$c --> driveContentsResult
+                    * */
+
+
+/*
+                     PendingResult<Result> pr = new PendingResult<Result>() {
+
+                        @Override
+                        public Result await() {
+                            Log.v(TAG, "On await()");
+                            FILE = getFileMetadata(service, _fID);
+
+                            ObjectInstantiator<?> inst = getInstantiator(metadataResult);
+                            return (Result) inst.newInstance();
+                        }
+
+                        @Override
+                        public Result await(long l, TimeUnit timeUnit) {
+                            Log.v(TAG, "On await()");
+                            FILE = getFileMetadata(service, _fID);
+
+                            ObjectInstantiator<?> inst = getInstantiator(metadataResult);
+                            return (Result) inst.newInstance();
+                        }
+
+                        @Override
+                        public void cancel() {
+                        }
+
+                        @Override
+                        public boolean isCanceled() {
+                            return false;
+                        }
+
+                        @Override
+                        public void setResultCallback(ResultCallback<Result> resultResultCallback) {
+                        }
+
+                        @Override
+                        public void setResultCallback(ResultCallback<Result> resultResultCallback, long l, TimeUnit timeUnit) {
+                        }
+
+                        @Override
+                        public void a(a a) {
+                        }
+                    };
+
+                    return pr;
+                */
+                }
+            });
+
+            XposedBridge.hookAllMethods(googleDriveFile, "open", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    PendingResult<Result> pr = new PendingResult<Result>() {
+                        @Override
+                        public Result await() {
+
+                            fileInputStream = downloadFile(service, FILE);
+
+                            ObjectInstantiator<?> inst = getInstantiator(driveContentsResult);
+                            return (Result) inst.newInstance();
+                        }
+
+                        @Override
+                        public Result await(long l, TimeUnit timeUnit) {
+                            fileInputStream = downloadFile(service, FILE);
+
+                            ObjectInstantiator<?> inst = getInstantiator(driveContentsResult);
+                            return (Result) inst.newInstance();
+                        }
+
+                        @Override
+                        public void cancel() {
+                        }
+
+                        @Override
+                        public boolean isCanceled() {
+                            return false;
+                        }
+
+                        @Override
+                        public void setResultCallback(ResultCallback<Result> resultResultCallback) {
+                        }
+
+                        @Override
+                        public void setResultCallback(ResultCallback<Result> resultResultCallback, long l, TimeUnit timeUnit) {
+                        }
+
+                        @Override
+                        public void a(a a) {
+                        }
+                    };
+
+                    return pr;
+                }
+            });
+        }
+    }
+
 
     public void hookDriveAPI() {
 
         Log.v(TAG, "Hooking newDriveContents ");
 
         if (googleDriveApiImplementation != null)
-        /* Drive.DriveApi.newDriveContents(mGoogleApiClient)*/
-            //TODO: this should not be a hookAllMethods
-            XposedBridge.hookAllMethods(googleDriveApiImplementation, "newDriveContents", new XC_MethodReplacement() {
 
+
+            XposedBridge.hookAllMethods(googleDriveApiImplementation, "getFile", new XC_MethodReplacement() {
                 @Override
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
-                    logHook(methodHookParam);
 
-                    final ObjectInstantiator<?> instantiator = getInstantiator(googleDriveApiPendingResultImplementation);
+                    ObjectInstantiator<?> inst = getInstantiator(googleDriveFile);
 
-                    (new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                        /*Get Contents of Drive!!*/
-                            try {
-
-                                //printFilesInFolder(service, "root");
-                                files = retrieveAllFiles(service);
-                                for (File f : files)
-                                    Log.v(TAG, "File name : " + f.getTitle());
-
-                                synchronized (results) {
-                                    if (driveContentsResultCallBack == null) {
-                                        try {
-                                            results.wait();
-                                        } catch (InterruptedException e) {
-                                            e.printStackTrace();
-                                        }
-                                    }
-                                }
-
-                                ObjectInstantiator<?> instantiator1 = getInstantiator(driveContentsResult);
-
-                                Method m = null;
-                                for (Method mtz : driveContentsResultCallBack.getClass().getDeclaredMethods()) {
-                                    if (mtz.getName().equals("onResult")) {
-                                        m = mtz;
-                                        break;
-                                    }
-                                }
-
-                                if (m == null)
-                                    Log.v(TAG, "---> Couldnt find onResult method");
-                                else {
-
-                                    try {
-
-                                        m.invoke(driveContentsResultCallBack, instantiator1.newInstance());
-
-                                    } catch (IllegalAccessException e) {
-                                        e.printStackTrace();
-                                    } catch (InvocationTargetException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-
-                            synchronized (results) {
-                                results.notifyAll();
-                            }
-                        }
-                    })).start();
-
-                    Object o = instantiator.newInstance();
-
-                    if (o == null)
-                        Log.v(TAG, "Failed to create googleDriveApiPendingResultImplementation");
-                    else
-                        Log.v(TAG, "Successfully created googleDriveApiPendingResultImplementation");
-
-                    return o;
+                    return inst.newInstance();
                 }
             });
+
+
+        /* Drive.DriveApi.newDriveContents(mGoogleApiClient)*/
+        //TODO: this should not be a hookAllMethods
+        XposedBridge.hookAllMethods(googleDriveApiImplementation, "newDriveContents", new XC_MethodReplacement() {
+
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                logHook(methodHookParam);
+
+                final ObjectInstantiator<?> instantiator = getInstantiator(googleDriveApiPendingResultImplementation);
+
+                (new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        /*Get Contents of Drive!!*/
+                        try {
+
+                            //printFilesInFolder(service, "root");
+                            files = retrieveAllFiles(service, ALL_FOLDERS_MIME);
+                            for (File f : files)
+                                Log.v(TAG, "File name : " + f.getTitle());
+
+                            synchronized (results) {
+                                if (_driveContentsResultCallBack == null) {
+                                    try {
+                                        results.wait();
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+                            }
+
+                            ObjectInstantiator<?> instantiator1 = getInstantiator(driveContentsResult);
+
+                            Method m = null;
+                            for (Method mtz : _driveContentsResultCallBack.getClass().getDeclaredMethods()) {
+                                if (mtz.getName().equals("onResult")) {
+                                    m = mtz;
+                                    break;
+                                }
+                            }
+
+                            if (m == null)
+                                Log.v(TAG, "---> Couldnt find onResult method");
+                            else {
+
+                                try {
+
+                                    m.invoke(_driveContentsResultCallBack, instantiator1.newInstance());
+
+                                } catch (IllegalAccessException e) {
+                                    e.printStackTrace();
+                                } catch (InvocationTargetException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        synchronized (results) {
+                            results.notifyAll();
+                        }
+                    }
+                })).start();
+
+                Object o = instantiator.newInstance();
+
+                if (o == null)
+                    Log.v(TAG, "Failed to create googleDriveApiPendingResultImplementation");
+                else
+                    Log.v(TAG, "Successfully created googleDriveApiPendingResultImplementation");
+
+                return o;
+            }
+        });
 
         Log.v(TAG, "Hooking setResultCallback ");
 
@@ -542,7 +849,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     logHook(methodHookParam);
 
                     synchronized (results) {
-                        driveContentsResultCallBack = methodHookParam.args[0];
+                        _driveContentsResultCallBack = methodHookParam.args[0];
                         results.notifyAll();
                     }
 
@@ -577,7 +884,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 }
             });
 
-        if (googleDriveContents != null)
+        if (googleDriveContents != null) {
             XposedBridge.hookAllMethods(googleDriveContents, "getOutputStream", new XC_MethodReplacement() {
                 @Override
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
@@ -591,6 +898,17 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 }
             });
 
+            XposedBridge.hookAllMethods(googleDriveContents, "getInputStream", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+
+                    return fileInputStream;
+                }
+            });
+
+        }
+
 //        MetadataChangeSet metadataChangeSet = new MetadataChangeSet.Builder()
 //                .setMimeType("image/jpeg").setTitle("Android Photo.png").build();
 //        // Create an intent for the file chooser, and start it.
@@ -601,6 +919,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 //                .build(mGoogleApiClient);
 
         final Class<?> fileActivityBuilder = findClass("com.google.android.gms.drive.CreateFileActivityBuilder", mLpparam.classLoader);
+        final Class<?> openFileActivityBuilder = findClass("com.google.android.gms.drive.OpenFileActivityBuilder", mLpparam.classLoader);
 
         if (fileActivityBuilder != null)
             XposedBridge.hookAllMethods(googleDriveApiImplementation, "newCreateFileActivityBuilder", new XC_MethodReplacement() {
@@ -615,6 +934,104 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 }
             });
 
+        if (openFileActivityBuilder != null) {
+            XposedBridge.hookAllMethods(googleDriveApiImplementation, "newOpenFileActivityBuilder", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+
+                    //com.google.android.gms.drive.CreateFileActivityBuilder
+                    _mime = null;
+
+                    ObjectInstantiator<?> instantiator = getInstantiator(openFileActivityBuilder);
+                    return instantiator.newInstance();
+                }
+            });
+
+            XposedBridge.hookAllMethods(openFileActivityBuilder, "setMimeType", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+
+                    String[] mimeTypes = (String[]) methodHookParam.args[0];
+
+                    //TODO: I still dont understand why this would be an array of strings. for now [0] suffices
+                    _mime = mimeTypes[0];
+
+                    return methodHookParam.thisObject;
+                }
+            });
+
+            XposedBridge.hookAllMethods(openFileActivityBuilder, "build", new XC_MethodReplacement() {
+                        @Override
+                        protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                            logHook(methodHookParam);
+
+                            synchronized (blockFolderSelection) {
+                                blockFolderIsReady = false;
+                            }
+
+                            (new Thread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        if (_mime != null)
+
+                                            files = retrieveAllFiles(service, _mime);
+
+                                        else
+                                            files = retrieveAllFiles(service, ALL_FILES_MIME);
+
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+                                    }
+
+                                    synchronized (blockFolderSelection) {
+                                        blockFolderIsReady = true;
+                                        blockFolderSelection.notifyAll();
+                                    }
+                                }
+                            })).start();
+
+                            Log.v(TAG, "Waiting for blockFolderSelection");
+                            synchronized (blockFolderSelection) {
+                                if (!blockFolderIsReady)
+                                    blockFolderSelection.wait();
+                            }
+
+                            Log.v(TAG, "Retrieved file list");
+
+                            createDialogAndWait("Choose text file to open:");
+
+                            Log.v(TAG, "Attempting to set injected activity");
+                            Intent intent = new Intent(mCurrentActivity, mCurrentActivity.getClass());
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                            IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
+
+                            registeredObjects.add(sender);
+
+                            return sender;
+                        }
+                    }
+
+            );
+
+        }
+//        getFile(com.google.android.gms.common.api.GoogleApiClient ,
+//                com.google.android.gms.drive.DriveId )
+
+        if (googleDriveApiImplementation != null) {
+            XposedBridge.hookAllMethods(googleDriveApiImplementation, "getFile", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+
+
+                    return null;
+                }
+            });
+        }
+
         if (fileActivityBuilder != null)
             XposedBridge.hookAllMethods(fileActivityBuilder, "setInitialMetadata", new XC_MethodReplacement() {
                 @Override
@@ -626,10 +1043,10 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     Method getMimeType = XposedHelpers.findMethodBestMatch(metaClass, "getMimeType");
                     Method getTitle = XposedHelpers.findMethodBestMatch(metaClass, "getTitle");
 
-                    mime = (String) getMimeType.invoke(metadata);
-                    title = (String) getTitle.invoke(metadata); // + "-droid";
+                    _mime = (String) getMimeType.invoke(metadata);
+                    _title = (String) getTitle.invoke(metadata); // + "-droid";
 
-                    Log.v(TAG, "Mime : " + mime + " title : " + title);
+                    Log.v(TAG, "Mime : " + _mime + " title : " + _title);
 
                     //com.google.android.gms.drive.CreateFileActivityBuilder
                     return methodHookParam.thisObject;
@@ -659,96 +1076,26 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                     logHook(methodHookParam);
 
-                    mCurrentActivity.runOnUiThread(new Runnable() {
+                    createDialogAndWait("Select folder to create file:");
+
+                    Log.v(TAG, "Inserting file");
+
+                    new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            Dialog dialog = new Dialog(mCurrentActivity);
-                            AlertDialog.Builder builder = new AlertDialog.Builder(mCurrentActivity);
-                            builder.setTitle("Select folder to store image");
-
-                            final ListView modeList = new ListView(mCurrentActivity);
-                            ArrayList<String> filenames = new ArrayList<String>();
-
-                            for (File f : files)
-                                filenames.add(f.getTitle());
-
-                            String[] stringArray = new String[filenames.size()];
-                            stringArray = filenames.toArray(stringArray);
-
                             synchronized (blockFolderSelection) {
-                                blockFolderIsReady = false;
+                                if (!blockFolderIsReady)
+                                    try {
+                                        blockFolderSelection.wait();
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
                             }
 
-                            ArrayAdapter<String> modeAdapter = new ArrayAdapter<String>(mCurrentActivity, android.R.layout.simple_list_item_activated_1, android.R.id.text1, stringArray);
-                            modeList.setAdapter(modeAdapter);
-                            modeList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-
-                            builder.setView(modeList);
-                            builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface dialog, int whichButton) {
-
-                                    String folderID = null;
-                                    int checkedItem = modeList.getCheckedItemPosition();
-                                    final String filename = (String) modeList.getItemAtPosition(checkedItem);
-
-                                    if (filename == null) {
-                                        folderID = "root";
-                                    } else {
-
-
-                                        Log.v(TAG, "Selected folder was : " + filename);
-
-                                        for (File f : files) {
-                                            if (f.getTitle().equals(filename)) {
-                                                folderID = f.getId();
-                                                break;
-                                            }
-                                        }
-                                    }
-
-//insertFile(Drive service, String title, String description, String parentId, String mimeType, String filename)
-
-                                    if (folderID == null)
-                                        Log.v(TAG, "FolderID was null!");
-
-                                    final String fID = folderID;
-
-                                    new Thread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            insertFile(service, title, "", fID, mime, FILE_NAME);
-
-                                            synchronized (blockFolderSelection) {
-                                                blockFolderIsReady = true;
-                                                blockFolderSelection.notifyAll();
-                                            }
-                                        }
-                                    }).start();
-
-                                }
-                            });
-
-                            builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface dialog, int whichButton) {
-
-                                }
-                            });
-
-                            dialog = builder.create();
-
-                            dialog.show();
-
-                            //com.google.android.gms.drive.CreateFileActivityBuilder
-                            return;
+                            insertFile(service, _title, "", _fID, _mime, FILE_NAME);
+                            driveOutputStream = null;
                         }
-                    });
-
-                    synchronized (blockFolderSelection) {
-                        if (blockFolderIsReady == false)
-                            blockFolderSelection.wait();
-                    }
-
-                    driveOutputStream = null;
+                    }).start();
 
                     Log.v(TAG, "Attempting to set injected activity");
                     Intent intent = new Intent(mCurrentActivity, mCurrentActivity.getClass());
@@ -859,6 +1206,116 @@ public class DriveReplace implements IXposedHookLoadPackage {
     public static HashSet<Object> registeredObjects = new HashSet<Object>();
     private static HashMap<Method, XC_MethodReplacement> hookedOnActivityResult = new HashMap<Method, XC_MethodReplacement>();
 
+    public static void createDialogAndWait(final String title) {
+
+        Log.v(TAG, "Set folder not ready");
+        synchronized (blockFolderSelection) {
+            blockFolderIsReady = false;
+        }
+
+        mCurrentActivity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Log.v(TAG, "Running createDialogAndWait runnable");
+
+                Dialog dialog = new Dialog(mCurrentActivity);
+                AlertDialog.Builder builder = new AlertDialog.Builder(mCurrentActivity);
+                builder.setTitle(title);
+
+                final ListView modeList = new ListView(mCurrentActivity);
+                ArrayList<String> filenames = new ArrayList<String>();
+
+                for (File f : files)
+                    filenames.add(f.getTitle());
+
+                String[] stringArray = new String[filenames.size()];
+                stringArray = filenames.toArray(stringArray);
+
+                ArrayAdapter<String> modeAdapter = new ArrayAdapter<String>(mCurrentActivity, android.R.layout.simple_list_item_activated_1, android.R.id.text1, stringArray);
+                modeList.setAdapter(modeAdapter);
+                modeList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+
+                builder.setView(modeList);
+                builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+
+                        String folderID = null;
+                        int checkedItem = modeList.getCheckedItemPosition();
+                        final String filename = (String) modeList.getItemAtPosition(checkedItem);
+
+                        if (filename == null) {
+                            folderID = "root";
+                        } else {
+
+                            Log.v(TAG, "Selected file/folder was : " + filename);
+
+                            for (File f : files) {
+                                if (f.getTitle().equals(filename)) {
+                                    folderID = f.getId();
+                                    break;
+                                }
+                            }
+                        }
+
+//insertFile(Drive service, String title, String description, String parentId, String mimeType, String filename)
+
+                        if (folderID == null)
+                            Log.v(TAG, "File/FolderID was null!");
+
+                        _fID = folderID;
+
+                        Log.v(TAG, "Notifying folder selection");
+
+                        synchronized (blockFolderSelection) {
+                            blockFolderIsReady = true;
+                            blockFolderSelection.notifyAll();
+                        }
+
+                    }
+                });
+
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+
+                    }
+                });
+
+                Log.v(TAG, "Creating dialog");
+                dialog = builder.create();
+
+                Log.v(TAG, "Showing dialog");
+                dialog.show();
+
+//                Log.v(TAG,"Waiting for dialog ok press");
+//                try {
+//                    synchronized (blockFolderSelection) {
+//                        if (!blockFolderIsReady)
+//                            blockFolderSelection.wait();
+//                    }
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+                Log.v(TAG, "done with dialog");
+
+                //com.google.android.gms.drive.CreateFileActivityBuilder
+                return;
+            }
+        });
+
+
+//        Log.v(TAG, "Will wait for folder selection.");
+//        try {
+//            synchronized (blockFolderSelection) {
+//                if (!blockFolderIsReady)
+//                    blockFolderSelection.wait();
+//            }
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//
+//        Log.v(TAG, "Done waiting.");
+    }
+
     public static void removeMethod(Method m) {
         synchronized (hookedOnActivityResult) {
             XC_MethodReplacement rep = hookedOnActivityResult.remove(m);
@@ -916,6 +1373,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
             finish();
         }
+
     }
 
     public static final java.lang.String EXTRA_RESPONSE_DRIVE_ID = "response_drive_id";
@@ -1032,6 +1490,15 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 @Override
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                     return null;
+                }
+            });
+
+        if (googleApiClientImplementation != null)
+            XposedBridge.hookAllMethods(googleApiClientImplementation, "isConnected", new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                    logHook(methodHookParam);
+                    return true;
                 }
             });
 

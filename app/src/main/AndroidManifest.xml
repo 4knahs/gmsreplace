@@ -11,7 +11,7 @@
             android:value="2.0*" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Drive Api replacement" />
+            android:value="Drive Api replacement 2" />
 
     </application>
 
