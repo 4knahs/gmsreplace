@@ -563,6 +563,22 @@ public class DriveReplace implements IXposedHookLoadPackage {
             }
         });
 
+        XposedBridge.hookAllMethods(metadataChangeSetBuilder, "setMimeType", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                logHook(methodHookParam);
+                _mime = (String) methodHookParam.args[0];
+                return methodHookParam.thisObject;
+            }
+        });
+
+        XposedBridge.hookAllMethods(metadataChangeSetBuilder, "getMimeType", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                return _mime;
+            }
+        });
+
         XposedBridge.hookAllMethods(metadataChangeSetBuilder, "build", new XC_MethodReplacement() {
             @Override
             protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
@@ -1209,13 +1225,13 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                     logHook(methodHookParam);
 
-                    Object metadata = methodHookParam.args[0];
-                    Class<?> metaClass = metadata.getClass();
-                    Method getMimeType = XposedHelpers.findMethodBestMatch(metaClass, "getMimeType");
-                    Method getTitle = XposedHelpers.findMethodBestMatch(metaClass, "getTitle");
-
-                    _mime = (String) getMimeType.invoke(metadata);
-                    _title = (String) getTitle.invoke(metadata); // + "-droid";
+//                    Object metadata = methodHookParam.args[0];
+//                    Class<?> metaClass = metadata.getClass();
+//                    Method getMimeType = XposedHelpers.findMethodBestMatch(metaClass, "getMimeType");
+//                    Method getTitle = XposedHelpers.findMethodBestMatch(metaClass, "getTitle");
+//
+//                    _mime = (String) getMimeType.invoke(metadata);
+//                    _title = (String) getTitle.invoke(metadata); // + "-droid";
 
                     Log.v(TAG, "Mime : " + _mime + " title : " + _title);
 
