@@ -201,6 +201,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
         hookGoogleAPIClient();
         hookDriveAPI();
         hookDriveFile();
+        hookEditDriveFile();
         //hookGooglePlayServiceUtils();
 
 //        Class<?> pendingRes = findClass("com.google.android.gms.drive.internal.o$c", mLpparam.classLoader);
@@ -218,6 +219,51 @@ public class DriveReplace implements IXposedHookLoadPackage {
 //            }
 //        });
     }
+
+    /**
+     * Update an existing file's metadata and content.
+     *
+     * @param service        Drive API service instance.
+     * @param fileId         ID of the file to update.
+     * @param newTitle       New title for the file.
+     * @param newDescription New description for the file.
+     * @param newMimeType    New MIME type for the file.
+     * @param newFilename    Filename of the new content to upload.
+     * @param newRevision    Whether or not to create a new revision for this
+     *                       file.
+     * @return Updated file metadata if successful, {@code null} otherwise.
+     */
+    private static File updateFile(Drive service, String fileId, String newTitle,
+                                   String newDescription, String newMimeType, String newFilename, boolean newRevision) {
+        try {
+            // First retrieve the file from the API.
+            File file = service.files().get(fileId).execute();
+
+            // File's new metadata.
+            file.setTitle(newTitle);
+            file.setDescription(newDescription);
+            file.setMimeType(newMimeType);
+
+            // File's new content.
+            Log.v(TAG, "Trying to access file : " + mCurrentActivity.getFilesDir() + "/" + newFilename);
+
+            // File's content.
+            java.io.File fileContent = new java.io.File(mCurrentActivity.getFilesDir() + "/" + newFilename);
+
+            //java.io.File fileContent = new java.io.File(newFilename);
+            FileContent mediaContent = new FileContent(newMimeType, fileContent);
+
+            // Send the request to the API.
+            //File updatedFile
+            FILE = service.files().update(fileId, file, mediaContent).execute();
+
+            return FILE;
+        } catch (IOException e) {
+            System.out.println("An error occurred: " + e);
+            return null;
+        }
+    }
+
 
     /**
      * Get a file's metadata.
@@ -488,7 +534,84 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
     public static final int METADATA = 0;
     public static final int FOPEN = 1;
+    public static final int STATUS = 2;
     HashMap<Object, Integer> pendingResults = new HashMap<Object, Integer>();
+//    public static Constructor<?> metadataChangeSetConstructor = null;
+
+
+    public void hookEditDriveFile() {
+        final Class<?> metadataChangeSet = findClass("com.google.android.gms.drive.MetadataChangeSet", mLpparam.classLoader);
+        final Class<?> metadataChangeSetBuilder = findClass("com.google.android.gms.drive.MetadataChangeSet.Builder", mLpparam.classLoader);
+        final Class<?> pendingResultOfMetadata = findClass("com.google.android.gms.drive.internal.w$1", mLpparam.classLoader);
+        final Class<?> discardPendingResult = findClass("com.google.android.gms.drive.internal.o$4", mLpparam.classLoader);
+        final Class<?> googleDriveSuper = findClass("com.google.android.gms.drive.internal.w", mLpparam.classLoader);
+
+        XposedBridge.hookAllConstructors(metadataChangeSetBuilder, new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                logHook(methodHookParam);
+                return null;
+            }
+        });
+
+        XposedBridge.hookAllMethods(metadataChangeSetBuilder, "setTitle", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                logHook(methodHookParam);
+                _title = (String) methodHookParam.args[0];
+                return methodHookParam.thisObject;
+            }
+        });
+
+        XposedBridge.hookAllMethods(metadataChangeSetBuilder, "build", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                logHook(methodHookParam);
+
+                ObjectInstantiator<?> inst = getInstantiator(metadataChangeSet);
+                return inst.newInstance();
+            }
+        });
+
+        XposedBridge.hookAllMethods(googleDriveSuper, "updateMetadata", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                (new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateFile(service, _fID, _title, "", _mime, FILE_NAME, false);
+                    }
+                })).start();
+
+                ObjectInstantiator<?> instantiator = getInstantiator(pendingResultOfMetadata);
+
+                Object ret = instantiator.newInstance();
+
+                Log.v(TAG, "Registering metadata object");
+
+                pendingResults.put(ret, METADATA);
+
+                return ret;
+            }
+        });
+
+        XposedBridge.hookAllMethods(googleDriveContents, "commit", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                logHook(methodHookParam);
+
+
+                ObjectInstantiator<?> inst = getInstantiator(discardPendingResult);
+
+                Object ret = inst.newInstance();
+
+                pendingResults.put(ret,STATUS);
+
+                return ret;
+            }
+        });
+
+    }
 
     public void hookDriveFile() {
 
@@ -565,7 +688,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
             //XposedBridge.hookAllMethods(driveContentsResult, "getDriveContents")
 
-            Class<?> googleDriveSuper = findClass("com.google.android.gms.drive.internal.w", mLpparam.classLoader);
+            final Class<?> googleDriveSuper = findClass("com.google.android.gms.drive.internal.w", mLpparam.classLoader);
             final Class<?> pendingResultOfMetadata = findClass("com.google.android.gms.drive.internal.w$1", mLpparam.classLoader);
             final Class<?> pendingResultAwaitImplementation = findClass("com.google.android.gms.common.api.BaseImplementation$AbstractPendingResult", mLpparam.classLoader);
 
@@ -597,6 +720,9 @@ public class DriveReplace implements IXposedHookLoadPackage {
                         case METADATA:
                             inst = getInstantiator(metadataResult);
                             break;
+                        case STATUS:
+                            Constructor<?> status = XposedHelpers.findConstructorBestMatch(googleStatus, Integer.class);
+                            return status.newInstance(SUCCESS);
                     }
 
                     return inst.newInstance();
@@ -800,6 +926,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
         }
     }
 
+    public static volatile boolean _showDialog = false;
 
     public void hookDriveAPI() {
 
@@ -821,12 +948,14 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     files = null;
                     files = retrieveAllFiles(service, TEXT_FILES_MIME);
 
-                    while (files == null) {
+//                    while (files == null) {
+//
+//                    }
 
+                    if(_showDialog) {
+                        createDialogAndWait("Select text file @1");
+                        _showDialog = false;
                     }
-
-                    createDialogAndWait("Select text file");
-
                     return inst.newInstance();
                 }
             });
@@ -974,6 +1103,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
 //                driveOutputStream = new FileOutputStream(DRIVE_FILE_NAME, false);
                     //TODO: this technique assumes the outputstream is always new. Have to check the expected behavior
+
                     driveOutputStream = mCurrentActivity.openFileOutput(FILE_NAME, Context.MODE_PRIVATE);
 
                     return driveOutputStream;
@@ -1005,15 +1135,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
         }
 
-//        MetadataChangeSet metadataChangeSet = new MetadataChangeSet.Builder()
-//                .setMimeType("image/jpeg").setTitle("Android Photo.png").build();
-//        // Create an intent for the file chooser, and start it.
-//        IntentSender intentSender = com.google.android.gms.drive.Drive.DriveApi
-//                .newCreateFileActivityBuilder()
-//                .setInitialMetadata(metadataChangeSet)
-//                .setInitialDriveContents(result.getDriveContents())
-//                .build(mGoogleApiClient);
-
         final Class<?> fileActivityBuilder = findClass("com.google.android.gms.drive.CreateFileActivityBuilder", mLpparam.classLoader);
         final Class<?> openFileActivityBuilder = findClass("com.google.android.gms.drive.OpenFileActivityBuilder", mLpparam.classLoader);
 
@@ -1024,6 +1145,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     logHook(methodHookParam);
 
                     //com.google.android.gms.drive.CreateFileActivityBuilder
+                    _showDialog = true;
 
                     ObjectInstantiator<?> instantiator = getInstantiator(fileActivityBuilder);
                     return instantiator.newInstance();
@@ -1038,6 +1160,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
                     //com.google.android.gms.drive.CreateFileActivityBuilder
                     _mime = null;
+                    _showDialog = true;
 
                     ObjectInstantiator<?> instantiator = getInstantiator(openFileActivityBuilder);
                     return instantiator.newInstance();
@@ -1063,45 +1186,10 @@ public class DriveReplace implements IXposedHookLoadPackage {
                         protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                             logHook(methodHookParam);
 
-//                            synchronized (blockFolderSelection) {
-//                                blockFolderIsReady = false;
-//                            }
-//
-//                            (new Thread(new Runnable() {
-//                                @Override
-//                                public void run() {
-//                                    try {
-//                                        if (_mime != null)
-//
-//                                            files = retrieveAllFiles(service, _mime);
-//
-//                                        else
-//                                            files = retrieveAllFiles(service, ALL_FILES_MIME);
-//
-//                                    } catch (IOException e) {
-//                                        e.printStackTrace();
-//                                    }
-//
-//                                    synchronized (blockFolderSelection) {
-//                                        blockFolderIsReady = true;
-//                                        blockFolderSelection.notifyAll();
-//                                    }
-//                                }
-//                            })).start();
-//
-//                            Log.v(TAG, "Waiting for blockFolderSelection");
-//                            synchronized (blockFolderSelection) {
-//                                if (!blockFolderIsReady)
-//                                    blockFolderSelection.wait();
-//                            }
-//
-//                            Log.v(TAG, "Retrieved file list");
-//
-//                            createDialogAndWait("Choose text file to open:");
-
                             Log.v(TAG, "Attempting to set injected activity");
                             Intent intent = new Intent(mCurrentActivity, mCurrentActivity.getClass());
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            intent.putExtra("showDialog", true);
 
                             IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
 
@@ -1114,19 +1202,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
             );
 
         }
-//        getFile(com.google.android.gms.common.api.GoogleApiClient ,
-//                com.google.android.gms.drive.DriveId )
-
-//        if (googleDriveApiImplementation != null) {
-//            XposedBridge.hookAllMethods(googleDriveApiImplementation, "getFile", new XC_MethodReplacement() {
-//                @Override
-//                protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
-//
-//
-//                    return null;
-//                }
-//            });
-//        }
 
         if (fileActivityBuilder != null)
             XposedBridge.hookAllMethods(fileActivityBuilder, "setInitialMetadata", new XC_MethodReplacement() {
@@ -1172,7 +1247,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                     logHook(methodHookParam);
 
-                    createDialogAndWait("Select folder to create file:");
+                    createDialogAndWait("Select folder to create file: @2");
 
                     Log.v(TAG, "Inserting file");
 
@@ -1196,57 +1271,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     Log.v(TAG, "Attempting to set injected activity");
                     Intent intent = new Intent(mCurrentActivity, mCurrentActivity.getClass());
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-                    //Intent intent = new Intent(mCurrentActivity, IntentActivity.class);
-//                    intent.putExtra(EXTRA_RESPONSE_DRIVE_ID, FILE.getId());
-
-                    //protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
-//                    Method onActivityResult = XposedHelpers.findMethodBestMatch(mCurrentActivity.getClass(), "onActivityResult", Integer.class, Integer.class, Intent.class);
-//
-//                    Log.v(TAG, "Attempting to get lock hookedOnActivityResult");
-//
-//                    synchronized (hookedOnActivityResult) {
-//
-//                        Log.v(TAG, "Got it! Attempting to hook onActivityResult");
-//
-//                        if (!hookedOnActivityResult.containsKey(onActivityResult)) {
-//
-//                            Log.v(TAG, "Hooking onActivityResult");
-//
-//                            XC_MethodReplacement rep = new XC_MethodReplacement() {
-//                                @Override
-//                                protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-//                                    logHook(param);
-//
-//                                    Integer requestCode = (Integer) param.args[0];
-//                                    Integer resultCode = (Integer) param.args[1];
-//                                    Intent data = (Intent) param.args[2];
-//
-//                                    DriveReplace.removeMethod((Method) param.method);
-//
-//                                    Intent newIntent = DriveReplace.injectIntentOnActivityResult(requestCode, resultCode, data);
-//
-//                                    Method onActivityResult = XposedHelpers.findMethodBestMatch(param.thisObject.getClass(), "onActivityResult", Integer.class, Integer.class, Intent.class);
-//
-//                                    if (newIntent != null) {
-//                                        Log.v(TAG, "newIntent was set");
-//                                        onActivityResult.invoke(param.thisObject, requestCode, Activity.RESULT_OK, newIntent);
-//                                    } else {
-//                                        Log.v(TAG, "newIntent == null");
-//                                        onActivityResult.invoke(param.thisObject, requestCode, resultCode, data);
-//                                    }
-//
-//                                    return null;
-//                                }
-//                            };
-//
-//                            hookedOnActivityResult.put(onActivityResult, rep);
-//
-//                            XposedBridge.hookMethod(onActivityResult, rep);
-//
-//
-//                        }
-//                    }
+                    intent.putExtra("showDialog", true);
 
                     IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
 
@@ -1270,6 +1295,9 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 logHook(param);
 
                 IntentSender intent = (IntentSender) param.args[0];
+//                Intent intent = (Intent) param.args[2];
+
+
 
                 final MethodHookParam p = param;
 
@@ -1300,7 +1328,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
     }
 
     public static HashSet<Object> registeredObjects = new HashSet<Object>();
-    private static HashMap<Method, XC_MethodReplacement> hookedOnActivityResult = new HashMap<Method, XC_MethodReplacement>();
+//    private static HashMap<Method, XC_MethodReplacement> hookedOnActivityResult = new HashMap<Method, XC_MethodReplacement>();
 
     public static void createDialogAndWait(final String title) {
 
@@ -1382,42 +1410,20 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 Log.v(TAG, "Showing dialog");
                 dialog.show();
 
-//                Log.v(TAG,"Waiting for dialog ok press");
-//                try {
-//                    synchronized (blockFolderSelection) {
-//                        if (!blockFolderIsReady)
-//                            blockFolderSelection.wait();
-//                    }
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
                 Log.v(TAG, "done with dialog");
 
                 //com.google.android.gms.drive.CreateFileActivityBuilder
                 return;
             }
         });
+    }
 
-
-//        Log.v(TAG, "Will wait for folder selection.");
-//        try {
-//            synchronized (blockFolderSelection) {
-//                if (!blockFolderIsReady)
-//                    blockFolderSelection.wait();
-//            }
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
+//    public static void removeMethod(Method m) {
+//        synchronized (hookedOnActivityResult) {
+//            XC_MethodReplacement rep = hookedOnActivityResult.remove(m);
+//            XposedBridge.unhookMethod(m, rep);
 //        }
-//
-//        Log.v(TAG, "Done waiting.");
-    }
-
-    public static void removeMethod(Method m) {
-        synchronized (hookedOnActivityResult) {
-            XC_MethodReplacement rep = hookedOnActivityResult.remove(m);
-            XposedBridge.unhookMethod(m, rep);
-        }
-    }
+//    }
 
     public static Intent injectIntentOnActivityResult(Integer resquestCode, Integer resultCode, Intent data) {
 
@@ -1475,22 +1481,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
     public static final java.lang.String EXTRA_RESPONSE_DRIVE_ID = "response_drive_id";
     public static Object blockFolderSelection = new Object();
     public static Boolean blockFolderIsReady = false;
-
-    //    if (mGoogleApiClient == null) {
-//        // Create the API client and bind it to an instance variable.
-//        // We use this instance as the callback for connection and connection
-//        // failures.
-//        // Since no account name is passed, the user is prompted to choose.
-//        mGoogleApiClient = new GoogleApiClient.Builder(this)
-//                .addApi(Drive.API)
-//                .addScope(Drive.SCOPE_FILE)
-//                .addConnectionCallbacks(this)
-//                .addOnConnectionFailedListener(this)
-//                .build();
-//    }
-//
-//    // Connect the client. Once connected, the camera is launched.
-//    mGoogleApiClient.connect();
 
     private static String CLIENT_ID = "280386745163-ttaj1raa2ncdbf70btghdvps35adcjcc.apps.googleusercontent.com";
     private static String CLIENT_SECRET = "lULDjUuWpyA-pmEQXVUE4rzP";
@@ -1573,13 +1563,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
 //                return new MyGoogleAPIClient(connectionCallBackObject, connectionFailedCallbackObject);
                 }
             });
-
-//        XposedBridge.hookAllMethods(googleAPIClientBuilder, "build", new XC_MethodHook() {
-//            @Override
-//            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-//                Log.v(TAG, "Replaced : " + param.thisObject.getClass().getName() + " . " + param.method.getName() + " with return = " + param.getResult().getClass().getName());
-//            }
-//        });
 
         if (googleApiClientImplementation != null)
             XposedBridge.hookAllMethods(googleApiClientImplementation, "disconnect", new XC_MethodReplacement() {
@@ -1696,14 +1679,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 }
             });
 
-//        XposedBridge.hookAllMethods(findClass("com.aknahs.gms.quickstart.MainActivity", mLpparam.classLoader), "method", new XC_MethodHook() {
-//            @Override
-//            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-//                Log.v(TAG, "The current implementation class of Drive.DriveAPI is : " + param.args[0].getClass().getName());
-//            }
-//        });
-
-
     }
 
     public static HttpTransport httpTransport;
@@ -1752,23 +1727,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
                         isConnected = true;
                     }
-
-//                    mCurrentActivity.runOnUiThread(new Runnable() {
-//                        @Override
-//                        public void run() {
-//
-//                            new AlertDialog.Builder(mCurrentActivity)
-//                                    .setTitle("Allowing Google API access")
-//                                    .setMessage("Google Drive Service established!")
-//                                    .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-//                                        public void onClick(DialogInterface dialog, int whichButton) {
-//                                            Log.v(TAG, "Pressed OK");
-//
-//                                        }
-//                                    })
-//                                    .show();
-//                        }
-//                    });
 
                     Log.v(TAG, "Storing token : " + code);
 
