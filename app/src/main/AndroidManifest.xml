@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="drivereplace.aknahs.com.drivexposedmodule">
+    package="com.drivereplace">
 
     <application android:allowBackup="true" android:label="@string/app_name"
         android:icon="@drawable/ic_launcher" android:theme="@style/AppTheme">
@@ -11,7 +11,7 @@
             android:value="2.0*" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Drive Api replacement 2" />
+            android:value="Drive Api replacement 3" />
 
     </application>
 

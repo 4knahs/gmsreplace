@@ -1,4 +1,4 @@
-package drivereplace.aknahs.com.drivexposedmodule;
+package com.drivereplace;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -67,7 +67,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
     public static Object _driveContentsResultCallBack = null;
     public static Object results = new Object();
-    public static volatile List<com.google.api.services.drive.model.File> files = null;
+    public static volatile List<File> files = null;
     public static OutputStream driveOutputStream = null;
     public static InputStream fileInputStream = null;
     public static String _title;
@@ -121,7 +121,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
     private static Class<?> contents;
     private static Class<?> connectionResultClass;
 
-    public static void initClasses(XC_LoadPackage.LoadPackageParam lpparam) {
+    public void initClasses(XC_LoadPackage.LoadPackageParam lpparam) {
         googleAPIClientBuilder = findClass("com.google.android.gms.common.api.GoogleApiClient.Builder", lpparam.classLoader);
         googleApiClient = findClass("com.google.android.gms.common.api.GoogleApiClient", lpparam.classLoader);
         googleApiClientImplementation = findClass("com.google.android.gms.common.api.b", lpparam.classLoader);
@@ -202,7 +202,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
         return cls;
     }
 
-    @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         Log.v(TAG, "Loaded app: " + lpparam.packageName);
 
@@ -1176,7 +1175,6 @@ public class DriveReplace implements IXposedHookLoadPackage {
                         mCurrentActivity.runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                //Class<?> connectionResultClass = findClass("com.google.android.gms.common.ConnectionResult", mLpparam.classLoader);
                                 Method onConnected = XposedHelpers.findMethodExact(connectionCallBackObject.getClass(), "onConnected", Bundle.class);
                                 try {
                                     onConnected.setAccessible(true);
@@ -1221,7 +1219,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                     mCurrentActivity.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            //Class<?> connectionResultClass = findClass("com.google.android.gms.common.ConnectionResult", mLpparam.classLoader);
+
                             Method onConnected = XposedHelpers.findMethodExact(connectionCallBackObject.getClass(), "onConnected", Bundle.class);
                             try {
                                 onConnected.setAccessible(true);
@@ -1293,3 +1291,4 @@ public class DriveReplace implements IXposedHookLoadPackage {
         thr.start();
     }
 }
+

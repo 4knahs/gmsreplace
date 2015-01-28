@@ -1,5 +1,4 @@
-package drivereplace.aknahs.com.drivexposedmodule;
-
+package com.drivereplace;
 import android.util.Log;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
@@ -26,8 +25,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+
 /**
- * Created by aknahs on 22/01/15.
+ * Created by aknahs on 23/01/15.
  */
 public class DriveUtils {
 
@@ -81,7 +81,7 @@ public class DriveUtils {
         Log.v(TAG, "  " + serviceURL);
     }
 
-    public static String getConnectionURL(){
+    public static String getConnectionURL() {
         return serviceURL;
     }
 
@@ -99,7 +99,7 @@ public class DriveUtils {
         return service;
     }
 
-    public static void setConnectionToken(String token){
+    public static void setConnectionToken(String token) {
         code = token;
     }
 
@@ -150,7 +150,7 @@ public class DriveUtils {
     /**
      * Get a file's metadata.
      *
-     * @param fileId  ID of the file to print metadata for.
+     * @param fileId ID of the file to print metadata for.
      */
     public static File getFileMetadata(String fileId) {
 
@@ -197,7 +197,7 @@ public class DriveUtils {
     /**
      * Download a file's content.
      *
-     * @param file    Drive File instance.
+     * @param file Drive File instance.
      * @return InputStream containing the file's content if successful,
      * {@code null} otherwise.
      */
