@@ -17,7 +17,7 @@ This project also provides an API usage example for Droidnesis.
 Droidnesis is a framework for patching and remote code execution.
 It is able to perform patch distribution as well as providing tools for code offloading.
 
-While the DriveReplace.java and the DriveUtils.java represent a fully compliant Xposed module, the project also includes the [DroidLoader library](ttps://github.com/4knahs/DroidLoader).
+While the DriveReplace.java and the DriveUtils.java represent a fully compliant Xposed module, the project also includes the [DroidLoader library](https://github.com/4knahs/DroidLoader).
 This library provides the Droidnesis APIs.
 
 Projects to be imported into Droidnesis must include a com.registry.Registry class that extends the abstract DroidLoader class.
