@@ -60,3 +60,43 @@ Finally, because we wanted to add some more functionality, we added a few classe
 Droidnesis will check with which classes these classes interact and perform the necessary work for it to offload.
 When Droidnesis is disabled, the application will work normally. If it is enabled but with no connection, only the patching will be active.
 If it is both enabled and with connection, the specified classes will be offloaded automatically.
+
+## Building and installing
+
+### Xposed
+
+If to be used in Xposed, add the typical assets/xposed_init:
+```
+test.aknahs.com.droiddrivereplace.DriveReplace
+```
+And the manifest metadata:
+```
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="2.0*" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="DriveReplace demo" />
+```
+Build and install the application on the device. Remember to enable the module in Xposed.
+
+### Droidnesis
+
+If it is to be loaded in Droidnesis, in Android Studio, open “Run > Edit Configurations…”. Press the plus sign on the upper left and pick “Gradle”. On the “Gradle project” field select the recently created project “build.gradle” present on the project root. In the “Tasks” field write “assemble”, click ok and just run your project (Shift + F10).
+
+You should now have an apk file in <project_root_folder>/app/build/outputs/apk. For debugging purposes, you can push this file in the phone:
+```
+$ adb push <project_root_folder>/app/build/outputs/apk/debug_apk.apk data/local/tmp/dexjars/apk/drive-replace.apk
+```
+
+Using DroidBroker, generate the json representation of the application and place it on the phone as well:
+```
+$ cp <path_to_application>.apk apks/
+$ java -jar DroidBroker.java -P -g
+$ adb push results/<application>.json data/local/tmp/apkjsons/<application>.json
+```
+
+Enable Droidnesis and you are good to go!
