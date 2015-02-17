@@ -89,7 +89,8 @@ If it is to be loaded in Droidnesis, in Android Studio, open “Run > Edit Confi
 
 You should now have an apk file in <project_root_folder>/app/build/outputs/apk. For debugging purposes, you can push this file in the phone:
 ```
-$ adb push <project_root_folder>/app/build/outputs/apk/debug_apk.apk data/local/tmp/dexjars/apk/drive-replace.apk
+$ adb push <project_root_folder>/app/build/outputs/apk/debug_apk.apk\
+    data/local/tmp/dexjars/apk/drive-replace.apk
 ```
 
 Using DroidBroker, generate the json representation of the application and place it on the phone as well:
