@@ -29,4 +29,5 @@ dependencies {
     compile files('libs/google-api-services-drive-v2-rev154-1.19.0.jar')
     compile files('libs/jackson-core-2.1.3.jar')
     provided files('libs/XposedBridgeApi-42.jar')
+    compile files('libs/droidloader-0.1.jar')
 }

@@ -1,4 +1,5 @@
-package com.drivereplace;
+package test.aknahs.com.droiddrivereplace;
+
 import android.util.Log;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
@@ -85,16 +86,48 @@ public class DriveUtils {
         return serviceURL;
     }
 
+    public static boolean gotService(){
+        if(service != null)
+            return true;
+        return false;
+    }
+
     public static Drive connect() throws IOException {
+
+        Log.v(TAG, "DriveUtils.connect()");
+        if(gotService())
+            return service;
+
+        Thread thr = new Thread(new Runnable() {
+
+            @Override
+            public void run() {
+                try {
+                    response = flow.newTokenRequest(code).setRedirectUri(REDIRECT_URI).execute();
+
+                    credential = new GoogleCredential().setFromTokenResponse(response);
+
+                    //Create a new authorized API client
+                    service = new Drive.Builder(httpTransport, jsonFactory, credential).build();
+
+                    Log.v(TAG, "Storing token : " + code);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
+        thr.start();
+
+        try {
+            Log.v(TAG, "thr.join on connect");
+            thr.join();
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         Log.v(TAG, "Captured code : " + code);
-
-        response = flow.newTokenRequest(code).setRedirectUri(REDIRECT_URI).execute();
-        credential = new GoogleCredential().setFromTokenResponse(response);
-
-        //Create a new authorized API client
-        service = new Drive.Builder(httpTransport, jsonFactory, credential).build();
-
-        Log.v(TAG, "Storing token : " + code);
 
         return service;
     }

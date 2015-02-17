@@ -1,4 +1,4 @@
-package com.drivereplace;
+package test.aknahs.com.droiddrivereplace;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
@@ -47,7 +46,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 /**
  * Created by aknahs on 11/12/14.
  */
-public class DriveReplace implements IXposedHookLoadPackage {
+public class DriveReplace {
 
     /* Android version */
     public static Integer _androidVersion;
@@ -231,6 +230,13 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 mCurrentActivity = (Activity) param.getResult();
 
                 Log.v(TAG, "Current Activity : " + mCurrentActivity.getClass().getName());
+            }
+        });
+
+        XposedBridge.hookAllMethods(googleStatus,"hashCode", new XC_MethodReplacement() {
+            @Override
+            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                return 1;
             }
         });
 
@@ -898,6 +904,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                 Dialog dialog = new Dialog(mCurrentActivity);
                 AlertDialog.Builder builder = new AlertDialog.Builder(mCurrentActivity);
                 builder.setTitle(title);
+                builder.setCancelable(false);
 
                 final ListView modeList = new ListView(mCurrentActivity);
                 ArrayList<String> filenames = new ArrayList<String>();
@@ -957,6 +964,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
                 Log.v(TAG, "Creating dialog");
                 dialog = builder.create();
+                dialog.setCanceledOnTouchOutside(false);
 
                 Log.v(TAG, "Showing dialog");
                 dialog.show();
@@ -1127,9 +1135,28 @@ public class DriveReplace implements IXposedHookLoadPackage {
                         Log.v(TAG, "Token period : " + period + " from date: " + date);
 
                         if (token != null && period < 5 * 60 * 1000) {
+                            Log.v(TAG, "Was already connected!");
+
+
                             DriveUtils.setConnectionToken(token);
                             Log.v(TAG, "Retrieved token! Attempting to resume app by calling onConnected callback");
                             DriveUtils.connect();
+
+                            Log.v(TAG, "Attempting to resume app by calling onConnected callback");
+                            mCurrentActivity.runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Method onConnected = XposedHelpers.findMethodExact(connectionCallBackObject.getClass(), "onConnected", Bundle.class);
+                                    try {
+                                        onConnected.setAccessible(true);
+                                        onConnected.invoke(connectionCallBackObject, new Bundle());
+                                    } catch (IllegalAccessException e) {
+                                        e.printStackTrace();
+                                    } catch (InvocationTargetException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+                            });
 
                         } else {
 
@@ -1139,7 +1166,8 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
                                     final EditText input = new EditText(mCurrentActivity);
 
-                                    new AlertDialog.Builder(mCurrentActivity)
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(mCurrentActivity)
+                                            .setCancelable(false)
                                             .setTitle("Allowing Google API access")
                                             .setMessage("If you have a token already, type it below and press \"Ok\".\n Otherwise press \"Get\".")
                                             .setView(input)
@@ -1161,9 +1189,52 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
                                                     Editable value = input.getText();
 
+                                                    /*NEW CODE FOR OFFLOADING-----------------------------*/
+                                                    Log.v(TAG, "Attempting to register dialog");
+                                                    if (mCurrentActivity.getClass().getName().contains("MqttConnectorEmptyActivity")) {
+                                                        try {
+                                                            Method registerDialog = mCurrentActivity.getClass().getDeclaredMethod("registerDialog", AlertDialog.class);
+
+                                                            registerDialog.invoke(mCurrentActivity, new Object[]{ null });
+
+                                                        } catch (NoSuchMethodException e) {
+                                                            e.printStackTrace();
+                                                        } catch (InvocationTargetException e) {
+                                                            e.printStackTrace();
+                                                        } catch (IllegalAccessException e) {
+                                                            e.printStackTrace();
+                                                        }
+                                                    }
+                                                    /*---------------------------------------------------*/
+
                                                     completeConnection(value.toString());
                                                 }
-                                            }).show();
+                                            });
+
+                                    AlertDialog dialog = builder.create();
+                                    dialog.setCanceledOnTouchOutside(false);
+
+                                    /*NEW CODE FOR OFFLOADING-----------------------------*/
+                                    Log.v(TAG, "Attempting to register dialog");
+                                    if (mCurrentActivity.getClass().getName().contains("MqttConnectorEmptyActivity")) {
+                                        try {
+                                            Method registerDialog = mCurrentActivity.getClass().getDeclaredMethod("registerDialog", AlertDialog.class);
+
+                                            registerDialog.invoke(mCurrentActivity, dialog);
+
+                                        } catch (NoSuchMethodException e) {
+                                            e.printStackTrace();
+                                        } catch (InvocationTargetException e) {
+                                            e.printStackTrace();
+                                        } catch (IllegalAccessException e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                    /*---------------------------------------------------*/
+
+                                    dialog.show();
+
+
                                 }
                             });
                         }
@@ -1196,6 +1267,8 @@ public class DriveReplace implements IXposedHookLoadPackage {
 
     public void completeConnection(final String code) {
 
+
+        Log.v(TAG, "completeConnection");
         Thread thr = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -1223,6 +1296,7 @@ public class DriveReplace implements IXposedHookLoadPackage {
                             Method onConnected = XposedHelpers.findMethodExact(connectionCallBackObject.getClass(), "onConnected", Bundle.class);
                             try {
                                 onConnected.setAccessible(true);
+                                Log.v(TAG, "About to invoke onConnected on connectionCallBackObject. Should probably run on Client");
                                 onConnected.invoke(connectionCallBackObject, new Bundle());
                             } catch (IllegalAccessException e) {
                                 e.printStackTrace();
