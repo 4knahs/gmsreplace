@@ -18,6 +18,10 @@ import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 
+import com.aknahs.droidloader.Helpers;
+import com.aknahs.droidloader.InjectLocation;
+import com.aknahs.droidloader.NotInitializedException;
+import com.aknahs.droidloader.PatchInfo;
 import com.google.api.services.drive.model.File;
 
 import org.objenesis.instantiator.ObjectInstantiator;
@@ -45,6 +49,12 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
  * Created by aknahs on 11/12/14.
+ * <p/>
+ * -------------------------------------------------------------------------------
+ * Language                     files          blank        comment           code
+ * -------------------------------------------------------------------------------
+ * Java                             1            302             88            978
+ * -------------------------------------------------------------------------------
  */
 public class DriveReplace {
 
@@ -224,6 +234,8 @@ public class DriveReplace {
 		 */
         // TODO: this should intercept only the specific method
         XposedBridge.hookAllMethods(instrumentation, "newActivity", new XC_MethodHook() {
+
+            @PatchInfo(location = InjectLocation.BACKEND)
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 
@@ -233,7 +245,7 @@ public class DriveReplace {
             }
         });
 
-        XposedBridge.hookAllMethods(googleStatus,"hashCode", new XC_MethodReplacement() {
+        XposedBridge.hookAllMethods(googleStatus, "hashCode", new XC_MethodReplacement() {
             @Override
             protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                 return 1;
@@ -254,32 +266,32 @@ public class DriveReplace {
             Log.v(TAG, "-->Replaced : " + param.method.getDeclaringClass().getName() + " . " + param.method.getName());
     }
 
-    public static void hookGooglePlayServiceUtils() {
-
-        if (googlePlayServicesUtil != null)
-            XposedBridge.hookAllMethods(googlePlayServicesUtil, "isGooglePlayServicesAvailable",
-                    new XC_MethodReplacement() {
-                        @Override
-                        protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
-                            logHook(methodHookParam);
-                            return DriveUtils.SUCCESS;
-                        }
-                    });
-
-
-        if (googleConnectionResults != null)
-            XposedBridge.hookAllConstructors(googleConnectionResults,
-                    new XC_MethodHook() {
-                        @Override
-                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                            logHook(param);
-                            Log.v(TAG, "Printing stack trace:");
-                            Exception e = new Exception();
-                            e.printStackTrace();
-
-                        }
-                    });
-    }
+//    public static void hookGooglePlayServiceUtils() {
+//
+//        if (googlePlayServicesUtil != null)
+//            XposedBridge.hookAllMethods(googlePlayServicesUtil, "isGooglePlayServicesAvailable",
+//                    new XC_MethodReplacement() {
+//                        @Override
+//                        protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+//                            logHook(methodHookParam);
+//                            return DriveUtils.SUCCESS;
+//                        }
+//                    });
+//
+//
+//        if (googleConnectionResults != null)
+//            XposedBridge.hookAllConstructors(googleConnectionResults,
+//                    new XC_MethodHook() {
+//                        @Override
+//                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+//                            logHook(param);
+//                            Log.v(TAG, "Printing stack trace:");
+//                            Exception e = new Exception();
+//                            e.printStackTrace();
+//
+//                        }
+//                    });
+//    }
 
     public void hookEditDriveFile() {
 
@@ -348,21 +360,22 @@ public class DriveReplace {
             }
         });
 
-        XposedBridge.hookAllMethods(googleDriveContents, "commit", new XC_MethodReplacement() {
-            @Override
-            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
-                logHook(methodHookParam);
+        XposedBridge.hookAllMethods(googleDriveContents, "commit",
+                new XC_MethodReplacement() {
+                    @Override
+                    protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+                        logHook(methodHookParam);
 
 
-                ObjectInstantiator<?> inst = getInstantiator(discardPendingResult);
+                        ObjectInstantiator<?> inst = getInstantiator(discardPendingResult);
 
-                Object ret = inst.newInstance();
+                        Object ret = inst.newInstance();
 
-                pendingResults.put(ret, STATUS);
+                        pendingResults.put(ret, STATUS);
 
-                return ret;
-            }
-        });
+                        return ret;
+                    }
+                });
 
     }
 
@@ -784,6 +797,7 @@ public class DriveReplace {
 
         if (fileActivityBuilder != null)
             XposedBridge.hookAllMethods(fileActivityBuilder, "setInitialMetadata", new XC_MethodReplacement() {
+
                 @Override
                 protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
                     logHook(methodHookParam);
@@ -998,7 +1012,6 @@ public class DriveReplace {
 
             if (o != null)
                 returnIntent.putExtra("response_drive_id", (Parcelable) o);
-
         }
 
         return returnIntent;
@@ -1022,7 +1035,6 @@ public class DriveReplace {
 
             finish();
         }
-
     }
 
     public void hookGoogleAPIClient() {
@@ -1190,20 +1202,10 @@ public class DriveReplace {
                                                     Editable value = input.getText();
 
                                                     /*NEW CODE FOR OFFLOADING-----------------------------*/
-                                                    Log.v(TAG, "Attempting to register dialog");
-                                                    if (mCurrentActivity.getClass().getName().contains("MqttConnectorEmptyActivity")) {
-                                                        try {
-                                                            Method registerDialog = mCurrentActivity.getClass().getDeclaredMethod("registerDialog", AlertDialog.class);
-
-                                                            registerDialog.invoke(mCurrentActivity, new Object[]{ null });
-
-                                                        } catch (NoSuchMethodException e) {
-                                                            e.printStackTrace();
-                                                        } catch (InvocationTargetException e) {
-                                                            e.printStackTrace();
-                                                        } catch (IllegalAccessException e) {
-                                                            e.printStackTrace();
-                                                        }
+                                                    try {
+                                                        Helpers.cancelDialog();
+                                                    } catch (NotInitializedException e) {
+                                                        e.printStackTrace();
                                                     }
                                                     /*---------------------------------------------------*/
 
@@ -1215,20 +1217,10 @@ public class DriveReplace {
                                     dialog.setCanceledOnTouchOutside(false);
 
                                     /*NEW CODE FOR OFFLOADING-----------------------------*/
-                                    Log.v(TAG, "Attempting to register dialog");
-                                    if (mCurrentActivity.getClass().getName().contains("MqttConnectorEmptyActivity")) {
-                                        try {
-                                            Method registerDialog = mCurrentActivity.getClass().getDeclaredMethod("registerDialog", AlertDialog.class);
-
-                                            registerDialog.invoke(mCurrentActivity, dialog);
-
-                                        } catch (NoSuchMethodException e) {
-                                            e.printStackTrace();
-                                        } catch (InvocationTargetException e) {
-                                            e.printStackTrace();
-                                        } catch (IllegalAccessException e) {
-                                            e.printStackTrace();
-                                        }
+                                    try {
+                                        Helpers.registerDialog(dialog, Helpers.DialogBehavior.UNTIL_STOPPED);
+                                    } catch (NotInitializedException e) {
+                                        e.printStackTrace();
                                     }
                                     /*---------------------------------------------------*/
 
