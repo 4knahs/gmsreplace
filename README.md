@@ -4,12 +4,15 @@ Since there are a considerable number of devices with no Google Play Market and 
 
 This project consists of a prototype xposed module to replace Google Play Services by the correspondent web apis. 
 
-Currently supports google drive APIs present in both the Google Android Drive API demo applications:
+Currently supports Google Auth and Drive APIs (as well as some common and internal apis) present in both the Google Android Drive API demo applications:
 
 * Android-quickstart - uses the camera to take a picture and uploads the picture on selected Drive folder.
 * Android-quickeditor - a text editor that allows you to create, open and modify text files in your Drive.
+ 
+There are mechanisms that are very similar in other APIs so it can serve as an example for future implementations.
 
 ## Droidnesis integration
+
 This project also provides an API usage example for Droidnesis. 
 Droidnesis is a framework for patching and remote code execution.
 It is able to perform patch distribution as well as providing tools for code offloading.
