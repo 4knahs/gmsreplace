@@ -69,11 +69,11 @@ Note how there were only minimal changes to the original Xposed module in order 
 In DriveReplace there are only 2 method calls for supporting UI dialogs in backend.
 The DroidLoader is composed by 39 lines of code.
 
-2 lines for specifying applications supported.
+* 2 lines for specifying applications supported.
 
-1 line to specify the xposed module class.
+* 1 line to specify the xposed module class.
 
-26 lines to specify which classes are supposed to be offloaded.
+* 26 lines to specify which classes are supposed to be offloaded.
 
 Remaining lines belong to the DroidLoader class definition.
 
