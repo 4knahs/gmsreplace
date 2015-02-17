@@ -67,6 +67,7 @@ If it is both enabled and with connection, the specified classes will be offload
 ### Notes
 Note how there were only minimal changes to the original Xposed module in order to add Droidnesis support.
 In DriveReplace there are only 2 method calls for supporting UI dialogs in backend.
+
 The DroidLoader is composed by 39 lines of code.
 
 * 2 lines for specifying applications supported.
