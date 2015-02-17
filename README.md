@@ -17,7 +17,7 @@ This project also provides an API usage example for Droidnesis.
 Droidnesis is a framework for patching and remote code execution.
 It is able to perform patch distribution as well as providing tools for code offloading.
 
-While the DriveReplace.java and the DriveUtils.java represent a fully compliant Xposed module, the project also includes the DroidLoader library.
+While the DriveReplace.java and the DriveUtils.java represent a fully compliant Xposed module, the project also includes the [DroidLoader library](ttps://github.com/4knahs/DroidLoader).
 This library provides the Droidnesis APIs.
 
 Projects to be imported into Droidnesis must include a com.registry.Registry class that extends the abstract DroidLoader class.
@@ -105,13 +105,13 @@ Build and install the application on the device. Remember to enable the module i
 If it is to be loaded in Droidnesis, in Android Studio, open “Run > Edit Configurations…”. Press the plus sign on the upper left and pick “Gradle”. On the “Gradle project” field select the recently created project “build.gradle” present on the project root. In the “Tasks” field write “assemble”, click ok and just run your project (Shift + F10).
 
 You should now have an apk file in <project_root_folder>/app/build/outputs/apk. For debugging purposes, you can push this file in the phone:
-```
+```shell
 $ adb push <project_root_folder>/app/build/outputs/apk/debug_apk.apk\
     data/local/tmp/dexjars/apk/drive-replace.apk
 ```
 
 Using DroidBroker, generate the json representation of the application and place it on the phone as well:
-```
+```shell
 $ cp <path_to_application>.apk apks/
 $ java -jar DroidBroker.java -P -g
 $ adb push results/<application>.json data/local/tmp/apkjsons/<application>.json
