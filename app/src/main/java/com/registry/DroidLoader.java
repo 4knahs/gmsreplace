@@ -1,8 +1,8 @@
 package com.registry;
 
-import com.drivereplace.DriveReplace;
-
 import java.util.ArrayList;
+
+import test.aknahs.com.droiddrivereplace.DriveReplace;
 
 /**
  * Created by aknahs on 23/01/15.
@@ -15,12 +15,42 @@ public class DroidLoader {
     * ------------------------------------------------------*/
 
     /**
+     * There are 3 alternatives for loading a module:
+     *  -> _dex notation : deprecated
+     *  -> xposedModuleToLoad : fully xposed compatible
+     *  -> classesToLoad : descriptive hooking language
+     *
+     *  E.g:
+     *     xposedModuleToLoad.add(DriveReplace.class);
+     *
+     *     DriveReplace is a fully compliant Xposed module class with
+     *     handleLoadPackage(...) method
+     *
+     *
+     *
+     *  Any of the 3 options can be complemented with the classesToOffload
+     *  in order to enable class offloading.
+     */
+
+    /**
+     * This ArrayList holds the package names of the applications to hook
+     */
+    public static ArrayList<String> packagesToHook = new ArrayList<String>();
+
+    static {
+        //Add ur classes to register here
+        packagesToHook.add("com.aknahs.gms.quickstart");
+        packagesToHook.add("com.aknahs.gms.quickeditor");
+    }
+
+    /**
      * Holds a mapping between the original class name and the class where methods to be injected are implemented.
      */
     public static ArrayList<ClassLoaderInfo> classesToLoad = new ArrayList<ClassLoaderInfo>();
 
     static {
         //Add ur classes to register here
+
     }
 
     /**
