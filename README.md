@@ -70,7 +70,7 @@ If to be used in Xposed, add the typical assets/xposed_init:
 test.aknahs.com.droiddrivereplace.DriveReplace
 ```
 And the manifest metadata:
-```
+```xml
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
