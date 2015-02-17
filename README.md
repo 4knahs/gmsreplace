@@ -2,14 +2,14 @@ gmsreplace
 ==========
 Since there are a considerable number of devices with no Google Play Market and Google Play Services, this project presents a workaround for enabling Google Play Service dependent applications. 
 
-This project consists of a prototype xposed module to replace Google Play Services by the correspondent web apis. 
+This project consists of a fully compliant Xposed module to replace Google Play Services by the correspondent web apis. 
 
 Currently supports Google Auth and Drive APIs (as well as some common and internal apis) present in both the Google Android Drive API demo applications:
 
 * Android-quickstart - uses the camera to take a picture and uploads the picture on selected Drive folder.
 * Android-quickeditor - a text editor that allows you to create, open and modify text files in your Drive.
  
-There are mechanisms that are very similar in other APIs so it can serve as an example for future implementations.
+There are mechanisms that are very similar in other APIs so it can serve as an example for future implementations. Furthermore if installed with Droidnesis, it allows distributed usage of Google Drive (i.e. automatically place new Drive files in your friends Google Drive).
 
 ## Droidnesis integration
 
@@ -63,6 +63,15 @@ Finally, because we wanted to add some more functionality, we added a few classe
 Droidnesis will check with which classes these classes interact and perform the necessary work for it to offload.
 When Droidnesis is disabled, the application will work normally. If it is enabled but with no connection, only the patching will be active.
 If it is both enabled and with connection, the specified classes will be offloaded automatically.
+
+### Notes
+Note how there were only minimal changes to the original Xposed module in order to add Droidnesis support.
+In DriveReplace there are only 2 method calls for supporting UI dialogs in backend.
+The DroidLoader is composed by 39 lines of code.
+2 lines for specifying applications supported.
+1 line to specify the xposed module class.
+26 lines to specify which classes are supposed to be offloaded.
+Remaining lines belong to the DroidLoader class definition.
 
 ## Building and installing
 
