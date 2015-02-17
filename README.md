@@ -9,9 +9,12 @@ Currently supports google drive APIs present in both the Google Android Drive AP
 * Android-quickstart - uses the camera to take a picture and uploads the picture on selected Drive folder.
 * Android-quickeditor - a text editor that allows you to create, open and modify text files in your Drive.
 
-It also provides an API usage example for Droidnesis. Droidnesis is a framework for patching and remote code execution.
+## Droidnesis integration
+This project also provides an API usage example for Droidnesis. 
+Droidnesis is a framework for patching and remote code execution.
 It is able to perform patch distribution as well as providing tools for code offloading.
-While the DriveReplace.java and the DriveUtils represent a fully compliant Xposed module, the project includes the DroidLoader library.
+
+While the DriveReplace.java and the DriveUtils.java represent a fully compliant Xposed module, the project also includes the DroidLoader library.
 This library provides the Droidnesis APIs.
 
 Projects to be imported into Droidnesis must include a com.registry.Registry class that extends the abstract DroidLoader class.
