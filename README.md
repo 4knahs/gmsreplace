@@ -110,7 +110,7 @@ $ adb push <project_root_folder>/app/build/outputs/apk/debug_apk.apk\
     data/local/tmp/dexjars/apk/drive-replace.apk
 ```
 
-Using DroidBroker, generate the json representation of the application and place it on the phone as well:
+Using [DroidBroker](https://bitbucket.org/aknahs/droidbroker), generate the json representation of the application and place it on the phone as well:
 ```shell
 $ cp <path_to_application>.apk apks/
 $ java -jar DroidBroker.java -P -g
