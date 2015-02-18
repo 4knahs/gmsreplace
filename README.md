@@ -6,8 +6,8 @@ This project consists of a fully compliant Xposed module to replace Google Play 
 
 Currently supports Google Auth and Drive APIs (as well as some common and internal apis) present in both the Google Android Drive API demo applications:
 
-* Android-quickstart - uses the camera to take a picture and uploads the picture on selected Drive folder.
-* Android-quickeditor - a text editor that allows you to create, open and modify text files in your Drive.
+* [Android-quickstart](https://github.com/googledrive/android-quickstart) - uses the camera to take a picture and uploads the picture on selected Drive folder.
+* [Android-quickeditor](https://github.com/4knahs/android-quickeditor) - a text editor that allows you to create, open and modify text files in your Drive.
  
 There are mechanisms that are very similar in other APIs so it can serve as an example for future implementations. Furthermore if installed with Droidnesis, it allows distributed usage of Google Drive (i.e. automatically place new Drive files in your friends Google Drive).
 
