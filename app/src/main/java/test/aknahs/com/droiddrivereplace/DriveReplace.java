@@ -65,7 +65,22 @@ public class DriveReplace {
 
     /* Holds instantiators for known local classes */
     public static HashMap<Class<?>, ObjectInstantiator<?>> _instantiatorCache = new HashMap<Class<?>, ObjectInstantiator<?>>();
-    private static HashSet<Object> registeredObjects = new HashSet<Object>();
+    //private static HashSet<Object> registeredObjects = new HashSet<Object>();
+
+    /*-------------------
+    Since intentRegistered object is accessed by client and backend, it has to be accessed through getters/setters*/
+
+    private static HashSet<Object> intentRegisteredObjects = new HashSet<Object>();
+
+    public static void addRegisteredObject(Object o){
+        intentRegisteredObjects.add(o);
+    }
+    /*-------------------*/
+
+    public static boolean containsObject(Object o){
+        return intentRegisteredObjects.contains(o);
+    }
+
     private static HashMap<Object, Integer> pendingResults = new HashMap<Object, Integer>();
 
     public static volatile Boolean isConnected = false;
@@ -787,7 +802,7 @@ public class DriveReplace {
 
                             IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
 
-                            registeredObjects.add(sender);
+                            addRegisteredObject(sender);
 
                             return sender;
                         }
@@ -860,7 +875,7 @@ public class DriveReplace {
 
                     IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
 
-                    registeredObjects.add(sender);
+                    addRegisteredObject(sender);
 
                     return sender;
                 }
@@ -877,7 +892,7 @@ public class DriveReplace {
 
                 final MethodHookParam p = param;
 
-                if (DriveReplace.registeredObjects.contains(intent)) {
+                if (containsObject(intent)) {
 
                     mCurrentActivity.runOnUiThread(new Runnable() {
                         @Override
