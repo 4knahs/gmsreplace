@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
+import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
@@ -56,7 +57,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
  * Java                             1            302             88            978
  * -------------------------------------------------------------------------------
  */
-public class DriveReplace {
+public class DriveReplace implements IXposedHookLoadPackage{
 
     /* Android version */
     public static Integer _androidVersion;
@@ -580,6 +581,7 @@ public class DriveReplace {
 
         Log.v(TAG, "Hooking newDriveContents ");
 
+
         if (googleDriveApiImplementation != null)
 
             XposedBridge.hookAllMethods(googleDriveApiImplementation, "getFile", new XC_MethodReplacement() {
@@ -867,7 +869,7 @@ public class DriveReplace {
 
                     Log.v(TAG, "Inserting file");
 
-                    new Thread(new Runnable() {
+                    Thread thr = new Thread(new Runnable() {
                         @Override
                         public void run() {
                             synchronized (blockFolderSelection) {
@@ -882,7 +884,14 @@ public class DriveReplace {
                             FILE = DriveUtils.insertFile(_title, "", _fID, _mime, mCurrentActivity.getFilesDir() + "/" + FILE_NAME);
                             driveOutputStream = null;
                         }
-                    }).start();
+                    });
+
+                    thr.start();
+
+                    //-------
+                    try{Helpers.isBackend();}
+                    catch(NotInitializedException e){thr.join();}
+                    //-------
 
                     Log.v(TAG, "Attempting to set injected activity");
                     Intent intent = new Intent(mCurrentActivity, mCurrentActivity.getClass());
@@ -915,7 +924,13 @@ public class DriveReplace {
 
                 //if (containsObject(System.identityHashCode(intent)) {
 
-                ((Activity) Helpers.getCurrentActivity()).runOnUiThread(new Runnable() {
+                //---------------------
+                Activity current;
+                try{ current = ((Activity) Helpers.getCurrentActivity());}
+                catch(NotInitializedException e ){current = mCurrentActivity;}
+                //---------------------
+
+                current.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Method onActivityResult = XposedHelpers.findMethodBestMatch(p.thisObject.getClass(), "onActivityResult", Integer.class, Integer.class, Intent.class);
@@ -1024,6 +1039,15 @@ public class DriveReplace {
                 return;
             }
         });
+
+//        synchronized (blockFolderSelection) {
+//            if(!blockFolderIsReady)
+//                try {
+//                    blockFolderSelection.wait();
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+//        }
     }
 
     public static Intent injectIntentOnActivityResult(Integer resquestCode, Integer resultCode, Intent data) {
