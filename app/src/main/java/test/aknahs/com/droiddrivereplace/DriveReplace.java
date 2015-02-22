@@ -65,21 +65,37 @@ public class DriveReplace {
 
     /* Holds instantiators for known local classes */
     public static HashMap<Class<?>, ObjectInstantiator<?>> _instantiatorCache = new HashMap<Class<?>, ObjectInstantiator<?>>();
-    //private static HashSet<Object> registeredObjects = new HashSet<Object>();
 
+    /*-------------------
     /*-------------------
     Since intentRegistered object is accessed by client and backend, it has to be accessed through getters/setters*/
 
     private static HashSet<Object> intentRegisteredObjects = new HashSet<Object>();
 
-    public static void addRegisteredObject(Object o){
-        intentRegisteredObjects.add(o);
+    public static void addRegisteredObject(Integer o) {
+        try {
+            Log.v(TAG, "Attempting to add on shared storage");
+            Helpers.shareObject(o, 0);
+        } catch (NotInitializedException e) {
+            e.printStackTrace();
+            Log.v(TAG, "Helpers.shareObject was not available");
+            intentRegisteredObjects.add(o);
+        }
+    }
+
+    public static boolean containsObject(Integer o) {
+        try {
+            Object[] objs = Helpers.getSharedObjects();
+            if (((Integer) objs[0]) == o)
+                return true;
+            return false;
+        } catch (NotInitializedException e) {
+            e.printStackTrace();
+            Log.v(TAG, "Helpers.shareObject was not available");
+            return intentRegisteredObjects.contains(o);
+        }
     }
     /*-------------------*/
-
-    public static boolean containsObject(Object o){
-        return intentRegisteredObjects.contains(o);
-    }
 
     private static HashMap<Object, Integer> pendingResults = new HashMap<Object, Integer>();
 
@@ -260,12 +276,12 @@ public class DriveReplace {
             }
         });
 
-        XposedBridge.hookAllMethods(googleStatus, "hashCode", new XC_MethodReplacement() {
-            @Override
-            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
-                return 1;
-            }
-        });
+//        XposedBridge.hookAllMethods(googleStatus, "hashCode", new XC_MethodReplacement() {
+//            @Override
+//            protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
+//                return 1;
+//            }
+//        });
 
         hookGoogleAPIClient();
         hookDriveAPI();
@@ -802,7 +818,7 @@ public class DriveReplace {
 
                             IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
 
-                            addRegisteredObject(sender);
+                            addRegisteredObject(System.identityHashCode(sender));
 
                             return sender;
                         }
@@ -875,7 +891,7 @@ public class DriveReplace {
 
                     IntentSender sender = PendingIntent.getActivity(mCurrentActivity, 0, intent, 0).getIntentSender();
 
-                    addRegisteredObject(sender);
+                    //addRegisteredObject(System.identityHashCode(sender));
 
                     return sender;
                 }
@@ -888,32 +904,37 @@ public class DriveReplace {
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 logHook(param);
 
+                Log.v(TAG, "-------------->>>Intercepted startIntentSenderForResult!!");
+
                 IntentSender intent = (IntentSender) param.args[0];
+
+                if (intent == null)
+                    Log.v(TAG, "intent was null");
 
                 final MethodHookParam p = param;
 
-                if (containsObject(intent)) {
+                //if (containsObject(System.identityHashCode(intent)) {
 
-                    mCurrentActivity.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Method onActivityResult = XposedHelpers.findMethodBestMatch(p.thisObject.getClass(), "onActivityResult", Integer.class, Integer.class, Intent.class);
+                ((Activity) Helpers.getCurrentActivity()).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Method onActivityResult = XposedHelpers.findMethodBestMatch(p.thisObject.getClass(), "onActivityResult", Integer.class, Integer.class, Intent.class);
 
-                            Intent newIntent = injectIntentOnActivityResult((Integer) p.args[1], (Integer) Activity.RESULT_OK, null);
+                        Intent newIntent = injectIntentOnActivityResult((Integer) p.args[1], (Integer) Activity.RESULT_OK, null);
 
-                            Log.v(TAG, "Setting new intent");
-                            try {
-                                onActivityResult.invoke(p.thisObject, p.args[1], Activity.RESULT_OK, newIntent);
-                            } catch (IllegalAccessException e) {
-                                e.printStackTrace();
-                            } catch (InvocationTargetException e) {
-                                e.printStackTrace();
-                            }
+                        Log.v(TAG, "Setting new intent");
+                        try {
+                            onActivityResult.invoke(p.thisObject, p.args[1], Activity.RESULT_OK, newIntent);
+                        } catch (IllegalAccessException e) {
+                            e.printStackTrace();
+                        } catch (InvocationTargetException e) {
+                            e.printStackTrace();
                         }
-                    });
+                    }
+                });
 
-                    param.setResult(null);
-                }
+                param.setResult(null);
+                //}
             }
         });
     }
