@@ -11,9 +11,9 @@ Currently supports Google Auth and Drive APIs (as well as some common and intern
  
 There are mechanisms that are very similar in other APIs so it can serve as an example for future implementations. Furthermore if installed with Droidnesis, it allows distributed usage of Google Drive (i.e. automatically place new Drive files in your friends Google Drive).
 
-## Droidnesis integration
+## INFv/Droidnesis integration
 
-This project also provides an API usage example for Droidnesis. 
+This project also provides an API usage example for INFv (an extension to the former Droidnesis). 
 Droidnesis is a framework for patching and remote code execution.
 It is able to perform patch distribution as well as providing tools for code offloading.
 
