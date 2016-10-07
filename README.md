@@ -100,9 +100,9 @@ And the manifest metadata:
 ```
 Build and install the application on the device. Remember to enable the module in Xposed.
 
-### Droidnesis
+### INFV/Droidnesis
 
-If it is to be loaded in Droidnesis, in Android Studio, open “Run > Edit Configurations…”. Press the plus sign on the upper left and pick “Gradle”. On the “Gradle project” field select the recently created project “build.gradle” present on the project root. In the “Tasks” field write “assemble”, click ok and just run your project (Shift + F10).
+If it is to be loaded in INFv/Droidnesis, in Android Studio, open “Run > Edit Configurations…”. Press the plus sign on the upper left and pick “Gradle”. On the “Gradle project” field select the recently created project “build.gradle” present on the project root. In the “Tasks” field write “assemble”, click ok and just run your project (Shift + F10).
 
 You should now have an apk file in <project_root_folder>/app/build/outputs/apk. For debugging purposes, you can push this file in the phone:
 ```shell
